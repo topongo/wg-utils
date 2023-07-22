@@ -1,0 +1,51 @@
+#!/bin/zsh
+
+[ "$EUID" -ne 0 ] && echo "Root access is needed." && exit 1
+
+[ -z "$1" ] && 1=wg0
+
+cd /etc/wireguard/peers
+
+[[ "$1" =~ " " ]] && echo "Interface name can't contain spaces" && exit 1
+
+if [ "$(ls -A /etc/wireguard/peers)" ]; then
+  echo Found these peers: $(ls *.key | sed 's/.key//' | paste -s -d ',')
+  echo -n "Continue with the listed hosts? (Y/n) "
+  read ans
+  echo
+  if [ -z "$ans" ] || [ "$ans" = "Y" ] || [ "$ans" = "y" ]; then
+    if [ -e ../$1.conf ]; then
+      echo A backup of $1.conf will be made at /etc/wireguard/$1.conf.back
+      cp ../$1.conf ../$1.conf.back
+    else
+      echo -n "File /etc/wireguard/$1.conf doesn't exists, create it? (Y/n)"
+      ans=""
+      read ans
+      echo
+      [ -z "$ans" ] && [ "$ans" != "Y" ] && echo "Aborted" && exit 0
+    fi
+
+    # generate
+    [ ! -e ../$1.default ] && echo Missing default interface configuration && exit 1
+    cat ../$1.default > ../$1.conf
+    for i in *.key; do
+      host="${i/.key/}"
+      [ ! -e "$host.psk" ] && echo "Missing .psk file for $host" && continue
+      [ ! -e "$host.pub" ] && echo "Missing .pub file for $host" && continue
+      [ ! -e "$host.ip"  ] && echo "Missing .ip file for $host"  && continue
+      echo >> ../$1.conf
+      echo "[Peer]" >> ../$1.conf
+      echo "# $host" >> ../$1.conf
+      echo "PublicKey = $(cat $host.pub)" >> ../$1.conf
+      echo "PresharedKey = $(cat $host.psk)" >> ../$1.conf
+      echo "AllowedIPs = $(cat $host.ip)" >> ../$1.conf
+      echo "Addedd peer \"$host\""
+    done
+    echo Done
+  else
+    echo Aborted.
+  fi
+else
+  echo "No peers found in configuration"
+  exit 1
+fi

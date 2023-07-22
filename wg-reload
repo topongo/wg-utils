@@ -1,0 +1,7 @@
+#!/bin/zsh
+
+[ "$EUID" -ne 0 ] && echo Root access is needed && exit 1
+if [ -z "$1" ]; then int=def; else int=$1; fi
+
+wg-quick down $int
+wg-quick up $int

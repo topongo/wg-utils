@@ -1,0 +1,35 @@
+#!/bin/zsh
+
+[ "$EUID" -ne 0 ] && echo "Root access is needed." && exit 1
+
+if [ -z "$2" ]; then int=def; else int=$2; fi
+[[ "$int" =~ " " ]] && echo Interface name cannot contain spaces && exit 1
+
+if [ -z "$1" ]; then
+  echo "wg-add-peer: Missing argument"
+  echo "Usage:   wg-add-peer PEER_NAME [INTERFACE]"
+  echo "Example: wg-add-peer example def"
+  exit 1
+fi
+
+
+cd /etc/wireguard/peers/
+
+[ -e "$1.key" ] && (echo "Configuration for peer $1 already exists"; echo "Delete file /etc/wireguard/peers/$1.key to overwrite.") && exit 1
+
+umask 077
+wg genkey | tee $1.key | wg pubkey > $1.pub
+wg genpsk > $1.psk
+
+echo -n "10.0.0.$(cat ips)/32" > $1.ip
+ips=$(cat "ips")
+ips=$((ips + 1))
+echo -n $ips > ips
+
+echo Successfully created $1, with ip `cat $1.ip` and pubkey `cat $1.pub`
+
+echo Regenerating configs for $int
+if ! yes | /usr/local/bin/wg-confgen "$int"; then echo Error generating configs; exit 1; fi
+
+echo Restarting interface $int
+/usr/local/bin/wg-reload $int

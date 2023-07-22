@@ -1,0 +1,35 @@
+#!/bin/zsh
+
+[ "$EUID" -ne 0 ] && echo Root access is needed. && exit 1
+[ -z "$1" ] && echo "Error, missing peer name" && exit 1
+if [ ! -z "$2" ]; then
+  if [ "$2" = "qrcode" ]; then mode=qrcode; else mode=normal; fi
+else
+  mode=normal
+fi
+
+cd /etc/wireguard/peers
+
+[ ! -f "$1.key" ] && echo Peer not found: $1 && exit 1
+
+echo Made a copy of confs/$1.conf to confs/$1.conf.back
+
+cp confs/$1.conf confs/$1.conf.back
+
+echo -n > confs/$1.conf
+echo "[Interface]" >> confs/$1.conf
+echo "PrivateKey = $(cat $1.key)" >> confs/$1.conf
+echo "Address = $(cat $1.ip)" >> confs/$1.conf
+echo "DNS = $(cat ../dns.default)" >> confs/$1.conf
+echo >> confs/$1.conf
+echo "[Peer]" >> confs/$1.conf
+echo "PublicKey = $(cat ../publickey)" >> confs/$1.conf
+echo "PresharedKey = $(cat $1.psk)" >> confs/$1.conf
+echo "AllowedIPs = 0.0.0.0/0, ::0/0" >> confs/$1.conf
+echo "Endpoint = $(cat ../endpoint.default)" >> confs/$1.conf
+
+if [ "$mode" = "normal" ]; then
+  cat confs/$1.conf
+else
+  cat confs/$1.conf | qrencode -t ansiutf8
+fi
